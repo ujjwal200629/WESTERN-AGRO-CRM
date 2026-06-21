@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 function Sellers() {
   const navigate = useNavigate();
   const [sellers, setSellers]   = useState([]);
+  const [recycleCount, setRecycleCount] = useState(0);
   const [editId, setEditId]     = useState(null);
   const [search, setSearch]     = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -21,7 +22,15 @@ function Sellers() {
 
   useEffect(() => {
     fetchSellers();
+    fetchRecycleCount();
   }, []);
+
+  const fetchRecycleCount = () => {
+    fetch("http://localhost:5000/sellers/recycle-bin")
+      .then(res => res.json())
+      .then(data => setRecycleCount(data.length))
+      .catch(() => setRecycleCount(0));
+  };
 
   const fetchSellers = () => {
     fetch("http://localhost:5000/sellers")
@@ -96,8 +105,9 @@ function Sellers() {
 
   // DELETE
   const handleDelete = async (id) => {
-    await fetch(`http://localhost:5000/sellers/${id}`, { method: "DELETE" });
+    await fetch(`http://localhost:5000/sellers/${id}/delete`, { method: "POST" });
     fetchSellers();
+    fetchRecycleCount();
   };
 
   // SEARCH
@@ -109,25 +119,33 @@ function Sellers() {
     <div className="card">
 
       {/* TOP BAR */}
-      <div className="table-top-bar">
+      <div className="table-top-bar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
         <input
           className="search-input"
           placeholder="Search Seller..."
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <button
-          className="add-btn"
-          onClick={() => {
-            setForm({ name: "", country: "", email: "", phone: "", product: "" });
-            setEditId(null);
-            setSelectedFiles([]);
-            setFileError("");
-            setShowForm(true);
-          }}
-        >
-          + Add Seller
-        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button 
+            style={{ backgroundColor: "#0e2318", color: "#c9a96e", border: "1px solid #c9a96e", padding: "0 20px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", fontWeight: "bold", whiteSpace: "nowrap", height: "40px" }}
+            onClick={() => navigate("/sellers/recycle-bin")}
+          >
+            ♻ Recycle Bin ({recycleCount})
+          </button>
+          <button
+            className="add-btn"
+            onClick={() => {
+              setForm({ name: "", country: "", email: "", phone: "", product: "" });
+              setEditId(null);
+              setSelectedFiles([]);
+              setFileError("");
+              setShowForm(true);
+            }}
+          >
+            + Add Seller
+          </button>
+        </div>
       </div>
 
       {/* POPUP FORM */}

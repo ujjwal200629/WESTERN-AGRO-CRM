@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FiSearch, FiX, FiChevronDown,
   FiChevronUp, FiPackage, FiMapPin, FiMail, FiBriefcase,
-  FiAlertCircle, FiAnchor, FiPhone, FiFileText
+  FiAlertCircle, FiAnchor, FiPhone, FiFileText, FiTrash2, FiArchive
 } from "react-icons/fi";
 
 function BuyerAvatar({ name }) {
@@ -18,8 +18,39 @@ function Buyers() {
   const [buyers, setBuyers]         = useState([]);
   const [search, setSearch]         = useState("");
   const [expandedId, setExpandedId] = useState(null);
+  
+  const [recycleCount, setRecycleCount] = useState(0);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [buyerToDelete, setBuyerToDelete] = useState(null);
 
-  useEffect(() => { fetchBuyers(); }, []);
+  useEffect(() => { 
+    fetchBuyers(); 
+    fetchRecycleCount();
+  }, []);
+
+  const fetchRecycleCount = () => {
+    fetch("http://localhost:5000/buyers/recycle-bin")
+      .then(res => res.json())
+      .then(data => setRecycleCount(data.length))
+      .catch(() => setRecycleCount(0));
+  };
+
+  const confirmDelete = () => {
+    if (!buyerToDelete) return;
+    fetch(`http://localhost:5000/buyers/${buyerToDelete.id}/delete`, {
+      method: "POST"
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          fetchBuyers();
+          fetchRecycleCount();
+          setDeleteModalOpen(false);
+          setBuyerToDelete(null);
+        }
+      })
+      .catch(err => console.error(err));
+  };
 
   const fetchBuyers = () => {
     fetch("http://localhost:5000/buyers")
@@ -46,8 +77,65 @@ function Buyers() {
   );
 
   /* ══════════════════════════ RENDER ══════════════════════════ */
+  const customStyles = `
+    .buyer-actions-container {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: nowrap;
+    }
+    .btn-view-docs {
+      background-color: #0e2318;
+      color: #c9a96e;
+      border: 1px solid #c9a96e;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      height: 40px;
+      min-width: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      font-size: 13px;
+    }
+    .btn-view-docs:hover {
+      background-color: #153524;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .btn-delete-buyer {
+      background-color: transparent;
+      color: #d9534f;
+      border: 1px solid #d9534f;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      height: 40px;
+      width: 40px;
+      flex-shrink: 0;
+      transition: all 0.2s ease;
+    }
+    .btn-delete-buyer:hover {
+      background-color: rgba(217, 83, 79, 0.1);
+      color: #c9302c;
+      border-color: #c9302c;
+    }
+    @media (max-width: 768px) {
+      .buyer-actions-container {
+        flex-direction: column;
+        gap: 6px;
+      }
+    }
+  `;
+
   return (
     <div className="buyers-page">
+      <style>{customStyles}</style>
 
       {/* PAGE HEADER */}
       <div className="buyers-page-header">
@@ -63,22 +151,31 @@ function Buyers() {
         </div>
       </div>
 
-      {/* SEARCH */}
-      <div className="buyers-search-wrap">
-        <FiSearch size={15} className="buyers-search-icon" />
-        <input
-          className="buyers-search"
-          placeholder="Search by name, company, email or phone…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        {search && (
-          <FiX
-            size={15}
-            className="buyers-search-clear"
-            onClick={() => setSearch("")}
+      {/* SEARCH AND RECYCLE BIN */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+        <div className="buyers-search-wrap" style={{ margin: 0, flex: 1, maxWidth: "400px" }}>
+          <FiSearch size={15} className="buyers-search-icon" />
+          <input
+            className="buyers-search"
+            placeholder="Search by name, company, email or phone…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
           />
-        )}
+          {search && (
+            <FiX
+              size={15}
+              className="buyers-search-clear"
+              onClick={() => setSearch("")}
+            />
+          )}
+        </div>
+        <button 
+          className="buyer-action-btn"
+          style={{ backgroundColor: "#0e2318", color: "#c9a96e", border: "1px solid #c9a96e", padding: "0 20px", borderRadius: "6px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", cursor: "pointer", fontWeight: "bold", whiteSpace: "nowrap", minWidth: "160px", height: "40px" }}
+          onClick={() => navigate("/buyers/recycle-bin")}
+        >
+          ♻ Recycle Bin ({recycleCount})
+        </button>
       </div>
 
       {/* TABLE */}
@@ -93,7 +190,7 @@ function Buyers() {
               <th>Phone</th>
               <th>Country</th>
               <th>Products</th>
-              <th>Actions</th>
+              <th style={{ minWidth: "240px", width: "240px", textAlign: "center", whiteSpace: "nowrap" }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -146,13 +243,24 @@ function Buyers() {
                         {products.length === 0 && <span style={{ color: "#aaa", fontSize: 12 }}>—</span>}
                       </div>
                     </td>
-                    <td>
-                      <div className="action-buttons">
+                    <td style={{ verticalAlign: "middle", textAlign: "center" }}>
+                      <div className="buyer-actions-container">
                         <button
-                          style={{ backgroundColor: "#2b2b2b", color: "#c9a96e" }}
+                          className="btn-view-docs"
                           onClick={e => { e.stopPropagation(); navigate(`/buyers/${b.id}/documents`); }}
                         >
                           View Documents
+                        </button>
+                        <button
+                          className="btn-delete-buyer"
+                          onClick={e => { 
+                            e.stopPropagation(); 
+                            setBuyerToDelete(b); 
+                            setDeleteModalOpen(true); 
+                          }}
+                          title="Move to Recycle Bin"
+                        >
+                          <FiTrash2 size={16} />
                         </button>
                       </div>
                     </td>
@@ -250,6 +358,35 @@ function Buyers() {
           </tbody>
         </table>
       </div>
+
+      {/* DELETE MODAL */}
+      {deleteModalOpen && buyerToDelete && (
+        <div className="modal-overlay" style={{ position: "fixed", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+          <div className="modal-content" style={{ backgroundColor: "#0e2318", padding: "30px", borderRadius: "12px", border: "1px solid #c9a96e", color: "white", maxWidth: "450px", width: "100%" }}>
+            <h2 style={{ marginTop: 0, color: "#c9a96e", display: "flex", alignItems: "center", gap: "10px" }}><FiTrash2 /> Move Buyer to Recycle Bin?</h2>
+            <p style={{ lineHeight: "1.6", color: "#e9ebea", marginBottom: "10px" }}>
+              This buyer will be removed from the active Buyers list.
+            </p>
+            <p style={{ lineHeight: "1.6", color: "#aaa", fontSize: "14px", marginBottom: "25px" }}>
+              All buyer information, generated documents, document history, account records, and analytics relationships will remain preserved and can be restored later.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "15px" }}>
+              <button 
+                onClick={() => { setDeleteModalOpen(false); setBuyerToDelete(null); }}
+                style={{ backgroundColor: "transparent", border: "1px solid #aaa", color: "#aaa", padding: "8px 16px", borderRadius: "6px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={confirmDelete}
+                style={{ backgroundColor: "#d9534f", border: "none", color: "white", padding: "8px 16px", borderRadius: "6px", cursor: "pointer", fontWeight: "bold" }}
+              >
+                Move to Recycle Bin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

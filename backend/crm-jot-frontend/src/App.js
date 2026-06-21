@@ -25,7 +25,9 @@ import {
 import { useEffect, useState } from "react";
 
 import Buyers         from "./pages/Buyers";
+import BuyersRecycleBin from "./pages/BuyersRecycleBin";
 import Sellers        from "./pages/Sellers";
+import SellerRecycleBin from "./pages/SellerRecycleBin";
 import Companies      from "./pages/Companies";
 import GenerateDoc    from "./pages/GenerateDoc";
 import Dashboard      from "./pages/Dashboard";
@@ -190,7 +192,9 @@ function Layout() {
           <Route path="/dashboard"  element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/inquiries"  element={<ProtectedRoute><Inquiries /></ProtectedRoute>} />
           <Route path="/seller-inquiries" element={<ProtectedRoute><SellerInquiries /></ProtectedRoute>} />
+          <Route path="/buyers/recycle-bin" element={<ProtectedRoute><BuyersRecycleBin /></ProtectedRoute>} />
           <Route path="/buyers"     element={<ProtectedRoute><Buyers /></ProtectedRoute>} />
+          <Route path="/sellers/recycle-bin" element={<ProtectedRoute><SellerRecycleBin /></ProtectedRoute>} />
           <Route path="/sellers"    element={<ProtectedRoute><Sellers /></ProtectedRoute>} />
           <Route path="/companies"  element={<ProtectedRoute><Companies /></ProtectedRoute>} />
           <Route path="/generate"   element={<ProtectedRoute><GenerateDoc /></ProtectedRoute>} />

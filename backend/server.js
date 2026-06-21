@@ -195,7 +195,14 @@ app.post("/generate-doc", (req, res) => {
 //  SELLERS
 // =============================================================================
 app.get("/sellers", (req, res) => {
-  db.query("SELECT * FROM sellers", (err, result) => {
+  db.query("SELECT * FROM sellers WHERE is_deleted = FALSE OR is_deleted IS NULL", (err, result) => {
+    if (err) return res.send(err);
+    res.json(result);
+  });
+});
+
+app.get("/sellers/recycle-bin", (req, res) => {
+  db.query("SELECT * FROM sellers WHERE is_deleted = TRUE", (err, result) => {
     if (err) return res.send(err);
     res.json(result);
   });
@@ -217,10 +224,51 @@ app.put("/sellers/:id", (req, res) => {
       res.send("Seller Updated");
     });
 });
-app.delete("/sellers/:id", (req, res) => {
-  db.query("DELETE FROM sellers WHERE id=?", [req.params.id], (err) => {
+app.post("/sellers/:id/delete", (req, res) => {
+  db.query("UPDATE sellers SET is_deleted = TRUE, deleted_at = NOW() WHERE id=?", [req.params.id], (err) => {
     if (err) return res.send(err);
-    res.send("Seller Deleted");
+    res.send("Seller Soft Deleted");
+  });
+});
+
+app.post("/sellers/:id/restore", (req, res) => {
+  db.query("UPDATE sellers SET is_deleted = FALSE, deleted_at = NULL WHERE id=?", [req.params.id], (err) => {
+    if (err) return res.send(err);
+    res.send("Seller Restored");
+  });
+});
+
+app.delete("/sellers/:id/permanent", (req, res) => {
+  const sellerId = req.params.id;
+  db.query("SELECT name FROM sellers WHERE id = ?", [sellerId], (err, sellerRes) => {
+    if (err || sellerRes.length === 0) return res.status(404).send("Seller not found");
+    const sellerName = sellerRes[0].name;
+
+    const queries = [
+      new Promise((resolve, reject) => {
+        db.query("SELECT COUNT(*) AS count FROM account_transactions WHERE seller_id = ?", [sellerId], (err, res) => err ? reject(err) : resolve(res[0].count));
+      }),
+      new Promise((resolve, reject) => {
+        db.query("SELECT COUNT(*) AS count FROM seller_documents WHERE seller_id = ?", [sellerId], (err, res) => err ? reject(err) : resolve(res[0].count));
+      }),
+      new Promise((resolve, reject) => {
+        db.query("SELECT COUNT(*) AS count FROM seller_inquiries WHERE seller_name = ?", [sellerName], (err, res) => err ? reject(err) : resolve(res[0].count));
+      })
+    ];
+
+    Promise.all(queries).then(results => {
+      const totalRefs = results.reduce((a, b) => a + b, 0);
+      if (totalRefs > 0) {
+        return res.status(400).json({ error: "This seller is linked to historical business records and cannot be permanently deleted." });
+      }
+      
+      db.query("DELETE FROM sellers WHERE id=?", [sellerId], (err) => {
+        if (err) return res.status(500).send(err);
+        res.send("Seller Permanently Deleted");
+      });
+    }).catch(err => {
+      res.status(500).send("Error checking references");
+    });
   });
 });
 
@@ -343,9 +391,17 @@ app.get("/seller-documents/download/:filename", (req, res) => {
 //  Replace your existing buyers GET/POST/PUT routes with these
 // ============================================================
 
-// GET all buyers
+// GET all active buyers
 app.get('/buyers', (req, res) => {
-  db.query('SELECT * FROM buyers ORDER BY created_at DESC', (err, results) => {
+  db.query('SELECT * FROM buyers WHERE is_deleted = FALSE OR is_deleted IS NULL ORDER BY created_at DESC', (err, results) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(results);
+  });
+});
+
+// GET all soft-deleted buyers
+app.get('/buyers/recycle-bin', (req, res) => {
+  db.query('SELECT * FROM buyers WHERE is_deleted = TRUE ORDER BY deleted_at DESC', (err, results) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json(results);
   });
@@ -379,9 +435,17 @@ app.put('/buyers/:id', (req, res) => {
   });
 });
 
-// DELETE buyer
-app.delete('/buyers/:id', (req, res) => {
-  db.query('DELETE FROM buyers WHERE id = ?', [req.params.id], (err) => {
+// POST — soft delete buyer
+app.post('/buyers/:id/delete', (req, res) => {
+  db.query('UPDATE buyers SET is_deleted = TRUE, deleted_at = NOW() WHERE id = ?', [req.params.id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ success: true });
+  });
+});
+
+// POST — restore buyer
+app.post('/buyers/:id/restore', (req, res) => {
+  db.query('UPDATE buyers SET is_deleted = FALSE, deleted_at = NULL WHERE id = ?', [req.params.id], (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ success: true });
   });
